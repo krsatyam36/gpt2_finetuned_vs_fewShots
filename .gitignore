@@ -1,0 +1,24 @@
+# Byte-compiled / caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+
+# Colab / local env
+.env
+venv/
+.env/
+
+# Data and large outputs (do not commit)
+/data/
+/models/
+/checkpoints/
+/outputs/*.bin
+outputs/*.safetensors
+video/*.mp4
+*.h5
+
+# OS files
+.DS_Store
+Thumbs.db
