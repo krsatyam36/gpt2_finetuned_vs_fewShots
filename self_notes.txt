@@ -1,0 +1,426 @@
+1.  there is still a need for task-specific datasets and task-specific fine-tuning: 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+shots ? 
+0 shots - just the instruction
+ex: 
+Task: Classify the sentiment of the sentence.
+Sentence: "I love this movie!"
+Answer:
+
+
+1 shot
+
+Task: Classify the sentiment of the sentence.
+
+Example:
+Sentence: "This food is terrible."
+Answer: Negative
+
+Now:
+Sentence: "I love this movie!"
+Answer:
+
+
+k shot:
+Task: Classify the sentiment of the sentence.
+
+Example 1:
+Sentence: "This food is terrible."
+Answer: Negative
+
+Example 2:
+Sentence: "The weather is amazing."
+Answer: Positive
+
+Example 3:
+Sentence: "It’s just okay."
+Answer: Neutral
+
+Now:
+Sentence: "I love this movie!"
+Answer:
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+GPT 2/3/4 ARE autoregressive LMs that have the main task to predict the next word, step by step from left to right      
+
+ex: Hi, how are you?
+gpt: Hello, I am good (it may stop here or ). How are you, been some time.(here)
+--> Autoregressive LM's are great at continuing a conversation or story.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Whereas, BERT which is a Masked language model has the main task of "FILLING IN MISSING WORDS", it can surely be fine-tuned but performs worse than autoregressive LMs.
+
+ex: Hey, how [mask] you?
+bert: Hey, how are you ? 
+--> Great at understaing the text and filling the blankk
+--> Let's say that the empty space is t, it's good at understanding words from 1 to (t-1).
+--> not desgined to keep talking beyonf the given text.
+
+link to the CLASSIC BERT code is : https://colab.research.google.com/drive/1yEm2swa6OtNL1_7Je1rr8-l_sIcLe_to#scrollTo=DKHAUT6EBtQq 
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+EVALUATIONS ---->
+
+
+1. Few shot evaluation setup: for each test example, they randomly picked K examples from the task's training set
+	these are placed bedire the test input
+	examples are seperated by 1-2 newlines depending on the dataset
+	larger K helps but not always, 
+	
+	LAMBADA
+	TASK: LANGUAGE MODELLING( PREDICT THE LAST WORD OF A PASSAGE)
+	TEST: TO CHECK IF THE MODEL UNDERSTANDS LONG-RANGE CONTEXT.
+	
+	input : Sally put on her shoes and grabbed her keys. She walked outside to the...
+	target completion: car (cannot guess the next word withot reading the whole story)--> tough and needs good context 
+	window size.
+	-------------------------------------------------------------------------------------------------------------------------------
+	STORYCLOZE
+	TASK: STORY COMPLETION(CHOOSE CORRECT ENDING)
+	DATASET: EACH EXAMLE HAS A 4-SENTENCE STORY + 2 CANDIDATE ENDING
+	
+	EXAMPLE : John worked hard all day.  
+	He was very tired when he got home.  
+	He lay down on the couch.  
+	He closed his eyes.  
+
+	ENDINGS:
+	A) “He quickly fell asleep.” ✅	
+	
+	B) “He cooked a big dinner.” ❌
+
+	Model must choose A.
+
+	Evaluated like multiple-choice → pick the ending with higher likelihood
+	
+2. PER TOKEN LIKELIHOOD:
+	- models assign probablities to each next token.
+	- if completion has multiple tokens, you can't just compare total probablity, because longer answers will always look "worse"
+	 	- example:
+	 		WHY LONGER COMPLETIONS LOOK WORSE ?
+	 		- A language model gives probablity for each next token.
+	 		- the total probablity of a sequence = prodcut of all token probabilities.
+	 		- P(word1, word2, word3, ..... , wordN) =   i=1 ∏ n​ P(w i​ ∣ w < i​)  the symbol defines product operator.
+	 		ex1: Prompt: The capital of France is 
+	 		Candidate A: Paris (1 token)
+	 		 -> Model assigns P(Paris | Context) = 0.3
+	 		 -> Total probablity = 0.3
+	 		Candidate B: the city of Paris (4 tokens)
+	 		 -> Model assigns
+	 		 	P("the") = 0.4
+				P("city") = 0.3
+				P("of") = 0.5
+				P("Paris") = 0.4
+				
+			 -> Total probability = 0.4×0.3×0.5×0.4=0.024 (LONGER THE SEQUENCE OF SMALL NUMBERS, THE RESULT PROBAB WILL BE EVEN SMALLER)
+			 			 
+			 CANDIDATE A VS B = 0.3 AND 0.024 
+	- Now to fix the above isse:
+		We have to normalize by the lenght:
+		-> Take average log-probablity per token (geometric mean) and choose whichever is higher.
+		CANDIDATE A:
+			log(0.3)/1 ~= -1.20
+		CANDIDATE B:
+			log(0.024)/1 ~= -1.06 
+			
+		CLEARLY WE CAN SEE THAT CANDIDATE B HAS HIGHER AVERAGE LOG-PROBABLITY SCORE
+		THEREFORE, CANDIDATE B WINS because " the city of Paris" is perfeclty valid, and is not being peenalized for being a longer response.
+		
+	- When things are not normalized, raw product punishes longer o/ps.
+	- Normalization (per token likelihood) makes the comparision fair.
+	
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+RESULTS -->
+
+	When we scale up the model size form a 100k params too 175B params, the training loss(**cross-entropy) keeps
+	dropping in a smooth power law curve.
+		Power law curve:
+			|
+			--> A power law curve is a smooth mathematical trend where imporvements follor a predictable 
+		            with the scale(loss decreases as model size increseases) .
+		            * It tell that if we make the model 10x bigger, I can roughly figure how much better loss will 
+		             get.
+		            * Reason why GPT3 was built  -> scaling laws suggested performance would keep improving. 
+		
+		Cross-entropy loss: 
+			|
+			|
+			--> 1. It is a loss function that measures how different two probability distribtions are:
+				-> the true distribution where the correct answer has probability 1.
+				-> the predicted distribtion, model's softmax probabilities over the vocabulary.
+				
+					H(p,q)=−i∑​p(i)⋅logq(i)
+					p(i) = true distribution (1 for the correct class, 0 otherwise).
+					q(i) = model’s predicted probability for class/token 
+					
+					Example:
+						Vocablury = (dog, cat, car)
+						-> true next token: dog -> p[1,0,0]
+						-> model predicts q[0.7, 0.2, 0.1]
+							|
+							|
+							--> How the model produces probabilites
+								ex: LMs output logits(raw score) for each word in the 
+								    vocablary.
+								    ex: [2.0, 0.0, -1.0] these are not probabilties yet.
+									    - these logits are then passed throgh a softmax
+									      function 
+									    - vocab = (dog, cat, car)
+									    - logits = [2.0, 0.0, -1.0]
+									    - softmax = [0.71, 0.26, 0.03]
+									    - sum of all the probabilities in the softmax is
+								 1  ex: Vocab = {w1, w2, …, w10}
+								        softmax = [0.10, 0.05, 0.07, 0.12, 0.08, 0.06, 0.15,
+								                                0.09, 0.18, 0.10]
+								                  sum = 1
+								             - then the highest probablity word is taken as
+								               as the next predicted word. (greedy approach)
+
+	This all suggests that bigger models consistently learn better, and the improvements are not from memorizing quirks
+	of the training data, they actually generalize to the real tasks.
+								    
+-------LANGUAGE MODELING, STORYCLOZ, COMPLETION:
+	
+	* Language Modeling (Penn Tree Bank dataset):
+		+ gpt3 acheives a sota perplexity(uncertanity) of 20.5 on the Penn TreeBankd dataset in 0shot
+		  			|
+		  			|
+		  			|
+		  			---> This is a measure of well a language model predicts text.
+		  				The formula is
+		  					Perlexity = e^ Cross entory loss
+		  				* Intutition:
+		  					/ low perplexity means the model is less surprised by the text and
+		  					  hence better performance.	
+		  					/ ex: if the true next word is "dog" and the model assigns a probability
+		  					      of 0.7, perplexity is lower than if it assign 0.01
+		  					/ A perplexity of 20 means that in average the model was uncertain as if 	
+		  					  it had to choose between 20 equally likely words at each step.
+		  + shows that gpt3 learns languages patterns very well.
+		  
+	* LAMBADA (perdict the last word of a story):
+		+ This is particulary hard as it need a long range of context.
+		+ gpt3 0 shot got 76% sota + %8
+		+ few shot with cloze "fill in the blankl" examples got 86.4% sota +18%
+		+ it shows that few shot prompting fixes the weakness of plain LM.
+		
+	* StoryCloze(pick the story ending):
+		+ gpt3 0shot 83.2% and few shot=87.7%
+		+ still below sota fine-tuned BERT, but is much better than eariler 0shot results.
+	
+	* HellSwag (choose the best contination for a story/instruction):
+		+ Humans = 95%, sota fine tuned= 85.6%
+		+ gpt3 few shots 79,3% fails when compared to sota fine tuned or humans.
+		
+------CLOSED-BOOK QA (FACTUAL KNOWLEDGE FROM MEMORY):
+	
+	Dataset: Natural questions, web qestions and trivia qa
+	
+	* gpt3 wis tested without retrieval(closed-book)
+		
+	+ TriviaQA: Zero-shot = 64.3%, Few-shot = 71.2% (SOTA, even vs fine-tuned retrieval models).
+
+	+ WebQuestions:nZero-shot weak (14%), Few-shot = 41.5% (close to fine-tuned T5).
+
+	+ Natural Questions: Zero-shot = 14.6%, Few-shot = 29.9% (still below SOTA).
+
+	+ GPT-3 memorizes/recalls lots of factual knowledge but struggles with narrower, specific QA like Natural 
+		Questions. Few-shot gives big boosts.
+
+-----Translation:
+	gpt3 was trained mostly on English, but ~7% of the tokens are other languages.
+	
+	* Tested on Fr, De, Ro <--> En
+	* zero shot weak
+	* one shot/few shots were much better(upto + 11 BLEU)
+	* few shot gpt3 performs prior unsupervised MT in some cases, especially when translating into En.
+	* Stil worse then supervised SOTA systems.
+	
+-----Winograd-Style Tasks (commonsense pronouns):
+
+	Winograd (classic): GPT-3 ≈ 88–89% → near human.
+
+	Winogrande (harder): GPT-3 few-shot = 77.7%, close to fine-tuned RoBERTa, but below SOTA (84.6%).
+
+👉 	Takeaway: GPT-3 handles easy pronoun disambiguation well, but struggles on adversarial versions.
+
+-----Commonsense Reasoning
+
+	Datasets: PIQA, ARC, OpenBookQA
+
+	PIQA (physical commonsense): GPT-3 few-shot = 82.8% → new SOTA.
+
+	ARC (science exam): GPT-3 ≈ 51–71% → below SOTA.
+
+	OpenBookQA: Improves with shots, but still 20+ points behind SOTA.
+
+	Takeaway: Mixed — strong on PIQA, weaker on ARC/OpenBook.
+	
+-----Reading Comprehension
+
+	Datasets: CoQA, DROP, QuAC, SQuADv2, RACE
+
+	CoQA (conversational QA): Few-shot = 85 F1 (near human + SOTA).
+
+	SQuADv2: Few-shot beats original fine-tuned baselines.
+
+	DROP, QuAC, RACE: GPT-3 lags behind SOTA (esp. DROP, RACE).
+
+	Takeaway: GPT-3 handles conversational QA well, but reasoning-heavy comprehension (DROP, RACE) is still hard.
+
+-----SuperGLUE (aggregate benchmark)
+
+	GPT-3 few-shot (32 examples/task) = ~71 avg.
+
+	Comparable to fine-tuned BERT-Large, but below SOTA T5 (96).
+
+	Strong on COPA, ReCoRD; weak on WiC, NLI.
+
+	Takeaway: Few-shot GPT-3 matches earlier fine-tuned baselines but not the very best fine-tuned models.
+
+-----Natural Language Inference (NLI)
+
+	+ RTE (binary entailment): Only GPT-3 175B does better than random.
+		Sub-task inside SuperGLUE (but also studied separately).
+		Task: Given 2 sentences, classify:
+		Entailment (true),
+		Contradiction (false),
+		Neutral (uncertain).
+
+		Example:
+		Premise: “The boy is playing soccer.”
+		Hypothesis: “The child is playing a sport.” → Entailment.
+
+	+ ANLI (adversarial NLI): Smaller models ~random; GPT-3 175B shows modest improvement but far below SOTA.
+		Harder version of NLI.
+		Datasets built in multiple “rounds” where humans kept creating examples that fooled earlier models.
+		Much more difficult than RTE.
+		Models often perform at random chance (≈33%) unless they’re very large.
+
+	GPT-3 still struggles on adversarial inference tasks.
+
+-----Synthetic & Qualitative Tasks
+
+	Probes GPT-3’s adaptability.
+
+	Arithmetic:
+
+		2-digit add/sub = near 100% in few-shot.
+		3-digit ~80–94%.
+		4/5-digit and multiplication: much weaker.
+		Shows pa7rtial generalization.
+		Word scrambling (character manipulation):
+		Few-shot GPT-3 solves some tasks (insertions, easy anagrams).
+		Fails on harder ones (reversing words).
+		Needs multiple examples.
+
+	SAT analogies:
+		Few-shot GPT-3 = 65% (better than human avg ~57%).
+		Smaller models much weaker.
+		
+	News generation:
+		Humans could barely distinguish GPT-3 175B news articles from real ones (~52% accuracy, i.e. chance).
+		Larger models = more human-like.
+		
+	Novel words:
+		GPT-3 can use new words in sentences after seeing one definition.
+	
+	Grammar correction:
+		Few-shot prompt (“Poor English → Good English”) works well.
+		Some bias in what it thinks is “good English.”
+
+	Takeaway: GPT-3 adapts surprisingly well to unusual or synthetic tasks with only a few examples — evidence of real in-context learning ability.
+	
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+4. MEASURING AND PREVENTING MEMORIZATION
+
+	+ GPT3 is trained on internet-scaled data(common crawl, books, wikipedia,etc). And since many NLP benchmarks also draw from the web, parts of the test data
+	  sets may acidentally appear in the training dataset, which means that gpt3 could memorize answers insted of generalizing.
+	+ Becuse gpt3 is almost 100x larger than the earlier models, it has a much higher chance of overlaping.
+	
+-----Prevention:
+	- removing obverlaps between training data and benchmarks (based on mathching 13-grams of text)
+	- but due to a bug, not all overalaps were removed and retraining was too costly.
+	- so, instead they made cleaner verison of benchmarks by filtering ot anything suspiciosly overlaping.
+	
+-----Results of cleaning: 
+	- for most benchmarks, scores barely changed between contaminated and clean subset, contamination had a very little effect.
+	- Tasks flagged for possible contamination:
+		+ PIQA: 29% overlap, slight performance drop
+		+ Winograd: 45% overlap, some schemas directly in the training data, small drop
+		+ Language Modeling(Wiki based datasets + children's text books): almost fully contaminated, so this wasn't reported.
+		+ LAMBADA: high contamination bt negligible effect
+		+ Reading comprehesnion(QuAC, SQuAD2, DROP): background passages overlapped but not the QandA pairs.
+		+ German-En translation: close to 25% overlap, tiny 1-2 BLEU Drop
+									  |
+									  |
+									  |
+									  --------> What is BLEU ?
+									  		/ Stands for Bilingual Evaluation Understudy
+									  		/ BLEU is a meteric to evaluate the quality of machine-translated text by comparing it to
+									  		  one or more rederence human translations.
+									  		  |
+									  		  |
+									  		  --> 1. Works by breaking the sentence into n-grams (continous word chunbks, like unigramm =1word
+									  		  	 bigrams = 2 words)
+									  		      2. Count how many n-grams from the machine translation match the reference translations.
+									  		      3. Apply a penalty for very short translation (so the system just dosen't output 1-2 
+									  		         correct words
+									  		      4. Combine these into a final score in range(0,100) {in practice, 20-40 is a good score}
+									  		      -INTERPRETATION:
+									  		      	* HIGHER BLEU = CLOSER TO HUMAN TRANSLATION
+									  		      	* BLEU = 0 -> NOT USEFUL.
+									  		      	* BLE = 100 -> PERFECT MATCH.
+									  		      	
+									  		      - EXAMPLE:
+									  		      	Reference : The cat sits n the mat.
+									  		      	Candidate A: The cat sits on the mat.
+									  		      	
+									  		      	BLEU -> 100
+									  		      
+									  		      - EXAMPLE:
+									  		      	Refernce: Today there is very slight rain
+									  		      	Candidate A: There is no rain today.
+									  		      	
+									  		      	 / Step 1: BREAK THE TOKENS:
+									  		      	 	Reference = [ "Today", "there", "is", "very", "slight", "rain" ]
+									  		      	 	Candidate A = ["There", "is", "no", "rain", "today"]
+									  		      	 	
+									  		      	/ Step 2: Check overlaps (unigrams, bigrams, etc.)
+													Unigrams (1-word matches):
+													Overlap: there, is, rain → 3 matches out of 5 candidate words = precision ≈ 0.6
+
+													Bigrams (2-word chunks):
+													Reference bigrams: today there, there is, is very, very slight, slight rain
+													Candidate bigrams: there is, is no, no rain, rain today
+													Overlap: only there is → 1 match out of 4 = precision = 0.25
+
+													Trigrams & 4-grams:
+													Likely 0 matches, since wording diverges.
+												
+												/ Step 3: Brevity Penalty:
+													Candidate length = 5, Reference length = 6 → penalty < 1 but not huge.
+												
+												/ Step 4:
+													Step 4: Combine with BLEU formula
+
+													BLEU ≈ geometric mean of n-gram precisions × brevity penalty.
+													Here:
+
+													1-gram = 0.6
+
+													2-gram = 0.25
+
+													3-gram = 0
+
+													4-gram = 0
+													→ Geometric mean collapses close to 0 when higher n-grams = 0.
+
+													So final BLEU ≈ 0–10 (very low).
+												/ Intuition
+												Even though the sentences mean almost the same thing, BLEU punishes wording difference 
+												heavily. Since “no rain” vs “very slight rain” share few exact n-grams, BLEU score looks 
+												bad, even if semantically they’re close.
+				
+				+ gpt-3 few shot got 39 for FR-EN translation which is close to SOTA supervised 45, while, zero short BLEU was much lower at 21																			  		
