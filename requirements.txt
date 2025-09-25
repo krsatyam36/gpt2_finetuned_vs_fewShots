@@ -1,0 +1,10 @@
+torch>=1.12
+transformers>=4.30
+datasets>=2.0
+accelerate>=0.20
+evaluate>=0.4
+sentencepiece
+tqdm
+numpy
+scipy
+git+https://github.com/huggingface/transformers.git@main  # optional for very latest
