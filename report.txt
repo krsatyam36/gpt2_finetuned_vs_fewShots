@@ -1,0 +1,74 @@
+GPT-2 Few-Shot vs Fine-Tuned Performance on AG News
+
+
+1. Introduction
+The main idea in that paper is that large language models like GPT-3 can perform new tasks without fine-tuning, just by being given instructions and a few examples (zero-shot, one-shot, few-shot). The bigger the model, the better it gets at this kind of “in-context learning.”
+For my project, instead of GPT-3, I worked with a smaller model (GPT-2) and tested how it behaves before and after fine-tuning. I compared few-shot prompting (no training, just prompts) against a fine-tuned model trained on a domain dataset.
+
+2. Dataset Choice
+I picked the AG News dataset. It’s a widely used open dataset of news headlines and short articles (120k training samples, 7.6k test samples). Since the task is generative language modeling, I removed the labels and only used the text.
+I chose AG News because:
+It’s open and easy to load in Colab with datasets.
+It has diverse but consistent news-style text.
+It allows me to test how GPT-2 learns to generate news continuations.
+
+3. Preprocessing
+Here’s what I did step by step:
+Removed the label column → kept only the text.
+Loaded the GPT-2 tokenizer (GPT2TokenizerFast) and set eos_token as pad_token (since GPT-2 doesn’t have padding).
+Tokenized the dataset into IDs.
+Grouped tokens into blocks of size 512 (so the model sees consistent chunks of text during training).
+
+4. Few-Shot Prompting (Before Fine-Tuning)
+To test baseline GPT-2, I built prompts with K examples:
+K=0 (zero-shot): only the test text.
+K=1 (one-shot): one example + the test text.
+K=3 (few-shot): three examples + the test text.
+
+Example (K=1):
+News: Fears for T N pension after talks...
+
+News: The Race is On: Second Private Team Sets Launch Date...
+GPT-2 then generates a continuation. Before fine-tuning, the completions were often generic, off-topic, and lacked consistency.
+
+5. Fine-Tuning GPT-2
+I fine-tuned GPT-2 on AG News for 20 epochs using an NVIDIA A100 GPU with 80GB VRAM. I used:
+Batch size: 64 (with gradient accumulation of 4 → effective batch 256)
+Learning rate: 3e-5
+Optimizer: AdamW (default in Hugging Face)
+Data collator: DataCollatorForLanguageModeling with mlm=False
+Training loss decreased steadily and stabilized around 3.23 after 20 epochs.
+
+6. Evaluation
+I evaluated the model in two ways:
+Perplexity:
+Pretrained GPT-2 (before fine-tuning) had higher perplexity.
+Fine-tuned GPT-2 achieved a validation perplexity of ~21.6 (lower = better).
+
+BLEU score:
+Baseline GPT-2 BLEU ≈ 0.0 (basically random compared to references).
+Fine-tuned GPT-2 BLEU ≈ 0.008 (still low, but shows measurable improvement).
+
+Qualitative generations:
+
+Before fine-tuning → completions wandered off-topic, mixing unrelated domains (e.g., space launches when prompted with finance news).
+After fine-tuning → completions stayed closer to news style, often continuing headlines in a realistic way (e.g., producing more “NASA/space” style text for science prompts).
+
+7. Extension Beyond the Paper
+The paper evaluated GPT-3 on many NLP benchmarks. My extension was:
+New dataset: Instead of broad web corpora, I used AG News headlines.
+New metric: I included BLEU score evaluation, which is not common for pure language modeling but provides an extra perspective on text overlap.
+This allowed me to explore GPT-2’s adaptability to a domain-specific dataset.
+
+8. Insights
+Few-shot prompting on GPT-2 (124M parameters) is weak compared to GPT-3, but still shows small gains as K increases.
+Fine-tuning significantly improved perplexity and made the model’s outputs more domain-appropriate.
+BLEU is low overall because generation is open-ended, but it still helps show improvement.
+
+9. Conclusion
+I reproduced the spirit of Brown et al. (2020) using GPT-2. I compared few-shot prompting vs fine-tuning. My experiments confirmed that:
+Few-shot prompting is convenient but weak for small models.
+Fine-tuning improves predictive accuracy and domain relevance.
+Using news headlines gave me a controlled testbed to see these effects.
+
+For future work, I would test larger GPT-2 variants (like GPT-2 Medium) and try parameter-efficient fine-tuning methods (like LoRA) to see if they bring bigger improvements without heavy training.
