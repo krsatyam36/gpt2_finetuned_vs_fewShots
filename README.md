@@ -6,7 +6,7 @@
 This repo contains code, notebook, a short report and sample outputs for my project comparing few-shot prompting vs fine-tuning of GPT-2 on the AG News dataset.
 
 ## Contents
-- `notebooks/gpt2_agnews_finetune.ipynb` — Colab-ready notebook (main deliverable).
+- `notebooks/gpt2_agnews_finetune.ipynb` — Colab-ready notebook.
 - `scripts/` — optional Python scripts to reproduce training/generation/evaluation.
 - `report/report.pdf` — 2-page report summarizing methods and results.
 - `outputs/` — sample generation outputs (pretrained vs fine-tuned).
